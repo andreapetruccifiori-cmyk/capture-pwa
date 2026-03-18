@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Capture</title>
-  <link rel="manifest" href="/functions/v1/pwa/manifest.json">
+  <link rel="manifest" href="manifest.json">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -665,7 +665,7 @@
 
   // --- Service worker ---
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/functions/v1/pwa/sw.js').catch(() => {});
+    navigator.serviceWorker.register('sw.js').catch(() => {});
   }
 
   // --- Init ---

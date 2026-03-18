@@ -2,7 +2,7 @@
   "name": "Capture",
   "short_name": "Capture",
   "description": "Intelligent capture — share links and notes, AI handles the rest",
-  "start_url": "/functions/v1/pwa",
+  "start_url": "/capture-pwa/",
   "display": "standalone",
   "background_color": "#0a0a0f",
   "theme_color": "#3b82f6",
@@ -14,7 +14,7 @@
     }
   ],
   "share_target": {
-    "action": "/functions/v1/pwa",
+    "action": "/capture-pwa/",
     "method": "GET",
     "params": {
       "title": "title",
