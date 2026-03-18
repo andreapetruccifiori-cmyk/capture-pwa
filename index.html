@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#3b82f6">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Capture</title>
+  <link rel="manifest" href="/functions/v1/pwa/manifest.json">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0f;
+      --card: #12121a;
+      --border: #2a2a3a;
+      --text: #e0e0e8;
+      --text-dim: #8888a0;
+      --accent: #3b82f6;
+      --task: #3b82f6;
+      --resource: #22c55e;
+      --idea: #8b5cf6;
+      --readlater: #f59e0b;
+      --queued: #f59e0b;
+      --processing: #3b82f6;
+      --completed: #22c55e;
+      --failed: #ef4444;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 480px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 16px 16px 80px;
+    }
+
+    h1 {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      color: var(--text);
+    }
+
+    /* Screens */
+    .screen { display: none; flex-direction: column; gap: 12px; flex: 1; }
+    .screen.active { display: flex; }
+
+    /* Form elements */
+    label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-dim);
+      margin-bottom: 4px;
+    }
+
+    input, textarea, select {
+      width: 100%;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 16px;
+      padding: 12px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input:focus, textarea:focus, select:focus {
+      border-color: var(--accent);
+    }
+
+    textarea { resize: vertical; min-height: 80px; }
+
+    select {
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238888a0' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 36px;
+    }
+
+    select option { background: var(--card); color: var(--text); }
+
+    .field-group { display: flex; flex-direction: column; gap: 4px; }
+
+    .url-hint {
+      display: none;
+      font-size: 12px;
+      color: var(--queued);
+      padding: 6px 10px;
+      background: rgba(245, 158, 11, 0.1);
+      border-radius: 6px;
+      border: 1px solid rgba(245, 158, 11, 0.2);
+    }
+
+    .url-hint.visible { display: block; }
+
+    /* Buttons */
+    .btn {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+      font-family: inherit;
+    }
+
+    .btn:active { transform: scale(0.98); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .btn-save {
+      background: var(--card);
+      border: 1px solid var(--accent);
+      color: var(--accent);
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-100px);
+      background: var(--completed);
+      color: #fff;
+      padding: 10px 24px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      z-index: 1000;
+      transition: transform 0.3s ease;
+      pointer-events: none;
+    }
+
+    .toast.show { transform: translateX(-50%) translateY(0); }
+    .toast.error { background: var(--failed); }
+
+    /* Bottom nav */
+    .bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--card);
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: center;
+      padding: 0 0 env(safe-area-inset-bottom, 0);
+      z-index: 100;
+    }
+
+    .bottom-nav-inner {
+      display: flex;
+      width: 100%;
+      max-width: 480px;
+    }
+
+    .nav-tab {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      padding: 10px 0;
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      font-size: 11px;
+      font-family: inherit;
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+
+    .nav-tab.active { color: var(--accent); }
+
+    .nav-tab svg { width: 22px; height: 22px; }
+
+    /* Recent captures */
+    .capture-list { display: flex; flex-direction: column; gap: 8px; }
+
+    .capture-item {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+
+    .capture-item:active { border-color: var(--accent); }
+
+    .capture-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .capture-title {
+      flex: 1;
+      font-size: 14px;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .badge {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 3px 7px;
+      border-radius: 4px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .badge-task { background: rgba(59,130,246,0.15); color: var(--task); }
+    .badge-resource { background: rgba(34,197,94,0.15); color: var(--resource); }
+    .badge-idea { background: rgba(139,92,246,0.15); color: var(--idea); }
+    .badge-readlater, .badge-read_later { background: rgba(245,158,11,0.15); color: var(--readlater); }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .status-queued { background: var(--queued); }
+    .status-processing { background: var(--processing); }
+    .status-completed { background: var(--completed); }
+    .status-failed { background: var(--failed); }
+
+    .capture-meta {
+      font-size: 11px;
+      color: var(--text-dim);
+      margin-top: 6px;
+    }
+
+    .capture-details {
+      display: none;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
+      font-size: 13px;
+      color: var(--text-dim);
+      line-height: 1.5;
+    }
+
+    .capture-details.open { display: block; }
+
+    .capture-details a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    .detail-row { margin-bottom: 4px; }
+    .detail-label { color: var(--text-dim); font-weight: 500; }
+
+    .empty-state {
+      text-align: center;
+      color: var(--text-dim);
+      padding: 40px 20px;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .loading {
+      text-align: center;
+      color: var(--text-dim);
+      padding: 40px 20px;
+    }
+
+    /* Settings */
+    .settings-note {
+      font-size: 12px;
+      color: var(--text-dim);
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- Capture Screen -->
+  <div id="screen-capture" class="screen active">
+    <h1>Capture</h1>
+
+    <div class="field-group">
+      <label for="url-input">URL</label>
+      <input type="url" id="url-input" placeholder="https://...">
+    </div>
+
+    <div class="field-group">
+      <label for="note-input">Note</label>
+      <textarea id="note-input" rows="3" placeholder="What's this about? Any context for AI..."></textarea>
+      <div class="url-hint" id="url-hint">What's this for? A short note helps AI route it better.</div>
+    </div>
+
+    <div class="field-group">
+      <label for="project-select">Project</label>
+      <select id="project-select">
+        <option value="auto">Auto (AI decides)</option>
+        <option value="Online Business">Online Business</option>
+        <option value="Self Awareness">Self Awareness</option>
+        <option value="Personal Productivity">Personal Productivity</option>
+        <option value="General Learning">General Learning</option>
+        <option value="Physical Health">Physical Health</option>
+      </select>
+    </div>
+
+    <button class="btn btn-primary" id="submit-btn" onclick="submitCapture()">Capture</button>
+  </div>
+
+  <!-- Recent Screen -->
+  <div id="screen-recent" class="screen">
+    <h1>Recent Captures</h1>
+    <div id="captures-container" class="capture-list">
+      <div class="loading">Loading...</div>
+    </div>
+  </div>
+
+  <!-- Settings Screen -->
+  <div id="screen-settings" class="screen">
+    <h1>Settings</h1>
+
+    <div class="field-group">
+      <label for="setting-endpoint">Capture Endpoint URL</label>
+      <input type="url" id="setting-endpoint" placeholder="https://...supabase.co/functions/v1/capture-ingest">
+    </div>
+
+    <div class="field-group">
+      <label for="setting-apikey">API Key</label>
+      <input type="password" id="setting-apikey" placeholder="Your capture API key">
+    </div>
+
+    <div class="field-group">
+      <label for="setting-supabase-url">Supabase URL</label>
+      <input type="url" id="setting-supabase-url" placeholder="https://...supabase.co">
+    </div>
+
+    <div class="field-group">
+      <label for="setting-anon-key">Supabase Anon Key</label>
+      <input type="password" id="setting-anon-key" placeholder="eyJ...">
+    </div>
+
+    <button class="btn btn-save" onclick="saveSettings()">Save Settings</button>
+    <p class="settings-note">Settings are stored locally on this device.</p>
+  </div>
+
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Bottom Nav -->
+<nav class="bottom-nav">
+  <div class="bottom-nav-inner">
+    <button class="nav-tab active" data-screen="capture" onclick="switchTab('capture')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 5v14M5 12h14"/>
+      </svg>
+      Capture
+    </button>
+    <button class="nav-tab" data-screen="recent" onclick="switchTab('recent')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
+      </svg>
+      Recent
+    </button>
+    <button class="nav-tab" data-screen="settings" onclick="switchTab('settings')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+      </svg>
+      Settings
+    </button>
+  </div>
+</nav>
+
+<script>
+  // --- Settings ---
+  const DEFAULTS = {
+    endpoint: 'https://lltudsvtukwermlsrcmt.supabase.co/functions/v1/capture-ingest',
+    supabaseUrl: 'https://lltudsvtukwermlsrcmt.supabase.co',
+    apiKey: '',
+    anonKey: ''
+  };
+
+  function getSetting(key) {
+    return localStorage.getItem('capture_' + key) || DEFAULTS[key] || '';
+  }
+
+  function setSetting(key, val) {
+    localStorage.setItem('capture_' + key, val);
+  }
+
+  function loadSettings() {
+    document.getElementById('setting-endpoint').value = getSetting('endpoint');
+    document.getElementById('setting-apikey').value = getSetting('apiKey');
+    document.getElementById('setting-supabase-url').value = getSetting('supabaseUrl');
+    document.getElementById('setting-anon-key').value = getSetting('anonKey');
+  }
+
+  function saveSettings() {
+    setSetting('endpoint', document.getElementById('setting-endpoint').value.trim());
+    setSetting('apiKey', document.getElementById('setting-apikey').value.trim());
+    setSetting('supabaseUrl', document.getElementById('setting-supabase-url').value.trim());
+    setSetting('anonKey', document.getElementById('setting-anon-key').value.trim());
+    showToast('Settings saved');
+  }
+
+  // --- Toast ---
+  function showToast(msg, isError) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast show' + (isError ? ' error' : '');
+    setTimeout(() => { t.className = 'toast'; }, 2500);
+  }
+
+  // --- Tab navigation ---
+  let refreshInterval = null;
+
+  function switchTab(name) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('screen-' + name).classList.add('active');
+    document.querySelector('[data-screen="' + name + '"]').classList.add('active');
+
+    // Auto-refresh recent captures
+    clearInterval(refreshInterval);
+    if (name === 'recent') {
+      loadCaptures();
+      refreshInterval = setInterval(loadCaptures, 10000);
+    }
+    if (name === 'settings') {
+      loadSettings();
+    }
+  }
+
+  // --- Share sheet params ---
+  function extractUrlFromText(text) {
+    const match = text.match(/https?:\/\/[^\s]+/);
+    return match ? match[0] : '';
+  }
+
+  function handleShareParams() {
+    const params = new URLSearchParams(window.location.search);
+    const url = params.get('url') || '';
+    const text = params.get('text') || '';
+    const title = params.get('title') || '';
+
+    const urlInput = document.getElementById('url-input');
+    const noteInput = document.getElementById('note-input');
+
+    if (url) {
+      urlInput.value = url;
+    } else if (text) {
+      // Text might contain a URL
+      const extracted = extractUrlFromText(text);
+      if (extracted) {
+        urlInput.value = extracted;
+        // Put the rest as note
+        const remainder = text.replace(extracted, '').trim();
+        if (remainder) noteInput.value = remainder;
+      }
+    }
+
+    if (text && !noteInput.value) {
+      // If text param exists but wasn't used for URL extraction leftovers
+      if (url) {
+        // URL came from url param, text is the note
+        noteInput.value = text;
+      }
+    }
+
+    // If we only got a title and nothing else
+    if (title && !noteInput.value && !urlInput.value) {
+      noteInput.value = title;
+    }
+
+    updateUrlHint();
+  }
+
+  // --- URL hint ---
+  function updateUrlHint() {
+    const urlVal = document.getElementById('url-input').value.trim();
+    const noteVal = document.getElementById('note-input').value.trim();
+    const hint = document.getElementById('url-hint');
+    hint.classList.toggle('visible', urlVal.length > 0 && noteVal.length === 0);
+  }
+
+  document.getElementById('url-input').addEventListener('input', updateUrlHint);
+  document.getElementById('note-input').addEventListener('input', updateUrlHint);
+
+  // --- Submit capture ---
+  async function submitCapture() {
+    const url = document.getElementById('url-input').value.trim();
+    const note = document.getElementById('note-input').value.trim();
+    const project = document.getElementById('project-select').value;
+
+    if (!url && !note) {
+      showToast('Enter a URL or note', true);
+      return;
+    }
+
+    const endpoint = getSetting('endpoint');
+    const apiKey = getSetting('apiKey');
+
+    if (!endpoint) {
+      showToast('Set endpoint in Settings', true);
+      switchTab('settings');
+      return;
+    }
+
+    const btn = document.getElementById('submit-btn');
+    btn.disabled = true;
+    btn.textContent = 'Sending...';
+
+    const body = {};
+    if (url) body.url = url;
+    if (note) body.note = note;
+    if (project && project !== 'auto') body.project = project;
+
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (apiKey) headers['Authorization'] = 'Bearer ' + apiKey;
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body)
+      });
+
+      if (!res.ok) {
+        const errText = await res.text().catch(() => res.statusText);
+        throw new Error(errText || 'HTTP ' + res.status);
+      }
+
+      showToast('Captured!');
+      document.getElementById('url-input').value = '';
+      document.getElementById('note-input').value = '';
+      document.getElementById('project-select').value = 'auto';
+      document.getElementById('url-hint').classList.remove('visible');
+
+      // Clean the URL params after successful share-sheet capture
+      if (window.location.search) {
+        history.replaceState(null, '', window.location.pathname);
+      }
+    } catch (err) {
+      showToast('Failed: ' + err.message, true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Capture';
+    }
+  }
+
+  // --- Recent captures ---
+  async function loadCaptures() {
+    const supabaseUrl = getSetting('supabaseUrl');
+    const anonKey = getSetting('anonKey');
+
+    if (!supabaseUrl || !anonKey) {
+      document.getElementById('captures-container').innerHTML =
+        '<div class="empty-state">Configure Supabase URL and Anon Key in Settings to view recent captures.</div>';
+      return;
+    }
+
+    try {
+      const res = await fetch(
+        supabaseUrl + '/rest/v1/captures?select=*&order=created_at.desc&limit=20',
+        { headers: { 'apikey': anonKey, 'Authorization': 'Bearer ' + anonKey } }
+      );
+
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+
+      const captures = await res.json();
+      renderCaptures(captures);
+    } catch (err) {
+      document.getElementById('captures-container').innerHTML =
+        '<div class="empty-state">Could not load captures.<br>' + err.message + '</div>';
+    }
+  }
+
+  function renderCaptures(captures) {
+    const container = document.getElementById('captures-container');
+
+    if (!captures.length) {
+      container.innerHTML = '<div class="empty-state">No captures yet. Share something!</div>';
+      return;
+    }
+
+    container.innerHTML = captures.map((c, i) => {
+      const classification = c.classification || {};
+      const title = classification.title || (c.note ? c.note.slice(0, 60) : (c.url ? c.url.slice(0, 60) : 'Untitled'));
+      const type = (classification.type || 'unknown').toLowerCase();
+      const status = c.status || 'queued';
+      const time = timeAgo(c.created_at);
+
+      let details = '';
+      if (classification.type) details += '<div class="detail-row"><span class="detail-label">Type:</span> ' + classification.type + '</div>';
+      if (classification.title) details += '<div class="detail-row"><span class="detail-label">Title:</span> ' + classification.title + '</div>';
+      if (classification.project) details += '<div class="detail-row"><span class="detail-label">Project:</span> ' + classification.project + '</div>';
+      if (c.url) details += '<div class="detail-row"><span class="detail-label">URL:</span> <a href="' + escapeHtml(c.url) + '" target="_blank">' + escapeHtml(c.url.slice(0, 50)) + '</a></div>';
+      if (c.note) details += '<div class="detail-row"><span class="detail-label">Note:</span> ' + escapeHtml(c.note) + '</div>';
+      if (c.destination_url) details += '<div class="detail-row"><a href="' + escapeHtml(c.destination_url) + '" target="_blank">View in destination</a></div>';
+      if (c.error) details += '<div class="detail-row" style="color:var(--failed)"><span class="detail-label">Error:</span> ' + escapeHtml(c.error) + '</div>';
+
+      return '<div class="capture-item" onclick="toggleDetails(' + i + ')">' +
+        '<div class="capture-header">' +
+          '<div class="status-dot status-' + status + '"></div>' +
+          '<div class="capture-title">' + escapeHtml(title) + '</div>' +
+          '<span class="badge badge-' + type.replace(/\s+/g, '_') + '">' + escapeHtml(type) + '</span>' +
+        '</div>' +
+        '<div class="capture-meta">' + time + '</div>' +
+        '<div class="capture-details" id="details-' + i + '">' + details + '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  function toggleDetails(i) {
+    document.getElementById('details-' + i).classList.toggle('open');
+  }
+
+  function escapeHtml(str) {
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  function timeAgo(iso) {
+    if (!iso) return '';
+    const diff = Date.now() - new Date(iso).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return mins + 'm ago';
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return hrs + 'h ago';
+    const days = Math.floor(hrs / 24);
+    return days + 'd ago';
+  }
+
+  // --- Service worker ---
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/functions/v1/pwa/sw.js').catch(() => {});
+  }
+
+  // --- Init ---
+  loadSettings();
+  handleShareParams();
+</script>
+</body>
+</html>
