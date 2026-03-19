@@ -109,6 +109,7 @@
     }
 
     .url-hint.visible { display: block; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
 
     /* Buttons */
     .btn {
@@ -311,26 +312,8 @@
     <h1>Capture</h1>
 
     <div class="field-group">
-      <label for="url-input">URL</label>
-      <input type="url" id="url-input" placeholder="https://...">
-    </div>
-
-    <div class="field-group">
-      <label for="note-input">Note</label>
-      <textarea id="note-input" rows="3" placeholder="What's this about? Any context for AI..."></textarea>
-      <div class="url-hint" id="url-hint">What's this for? A short note helps AI route it better.</div>
-    </div>
-
-    <div class="field-group">
-      <label for="project-select">Project</label>
-      <select id="project-select">
-        <option value="auto">Auto (AI decides)</option>
-        <option value="Online Business">Online Business</option>
-        <option value="Self Awareness">Self Awareness</option>
-        <option value="Personal Productivity">Personal Productivity</option>
-        <option value="General Learning">General Learning</option>
-        <option value="Physical Health">Physical Health</option>
-      </select>
+      <textarea id="capture-input" rows="4" placeholder="Paste a link, type a thought, or both..."></textarea>
+      <div class="url-hint" id="url-hint">Link detected — add a note about what this is for</div>
     </div>
 
     <button class="btn btn-primary" id="submit-btn" onclick="submitCapture()">Capture</button>
@@ -461,45 +444,37 @@
     }
   }
 
-  // --- Share sheet params ---
-  function extractUrlFromText(text) {
-    const match = text.match(/https?:\/\/[^\s]+/);
-    return match ? match[0] : '';
+  // --- URL detection ---
+  function extractUrls(text) {
+    const matches = text.match(/https?:\/\/[^\s]+/g);
+    return matches || [];
   }
 
+  function splitInputIntoUrlAndNote(raw) {
+    const urls = extractUrls(raw);
+    if (urls.length === 0) return { url: null, note: raw.trim() };
+    const url = urls[0];
+    const note = raw.replace(url, '').trim();
+    return { url, note: note || null };
+  }
+
+  // --- Share sheet params ---
   function handleShareParams() {
     const params = new URLSearchParams(window.location.search);
     const url = params.get('url') || '';
     const text = params.get('text') || '';
     const title = params.get('title') || '';
 
-    const urlInput = document.getElementById('url-input');
-    const noteInput = document.getElementById('note-input');
+    const input = document.getElementById('capture-input');
+    const parts = [];
 
-    if (url) {
-      urlInput.value = url;
-    } else if (text) {
-      // Text might contain a URL
-      const extracted = extractUrlFromText(text);
-      if (extracted) {
-        urlInput.value = extracted;
-        // Put the rest as note
-        const remainder = text.replace(extracted, '').trim();
-        if (remainder) noteInput.value = remainder;
-      }
-    }
+    // Build a single string from whatever the share sheet gives us
+    if (text) parts.push(text);
+    if (url && !text.includes(url)) parts.push(url);
+    if (title && !text.includes(title) && !url) parts.push(title);
 
-    if (text && !noteInput.value) {
-      // If text param exists but wasn't used for URL extraction leftovers
-      if (url) {
-        // URL came from url param, text is the note
-        noteInput.value = text;
-      }
-    }
-
-    // If we only got a title and nothing else
-    if (title && !noteInput.value && !urlInput.value) {
-      noteInput.value = title;
+    if (parts.length > 0) {
+      input.value = parts.join('\n');
     }
 
     updateUrlHint();
@@ -507,23 +482,33 @@
 
   // --- URL hint ---
   function updateUrlHint() {
-    const urlVal = document.getElementById('url-input').value.trim();
-    const noteVal = document.getElementById('note-input').value.trim();
+    const raw = document.getElementById('capture-input').value;
+    const { url, note } = splitInputIntoUrlAndNote(raw);
     const hint = document.getElementById('url-hint');
-    hint.classList.toggle('visible', urlVal.length > 0 && noteVal.length === 0);
+    hint.classList.toggle('visible', url !== null && !note);
   }
 
-  document.getElementById('url-input').addEventListener('input', updateUrlHint);
-  document.getElementById('note-input').addEventListener('input', updateUrlHint);
+  document.getElementById('capture-input').addEventListener('input', updateUrlHint);
 
   // --- Submit capture ---
   async function submitCapture() {
-    const url = document.getElementById('url-input').value.trim();
-    const note = document.getElementById('note-input').value.trim();
-    const project = document.getElementById('project-select').value;
+    const raw = document.getElementById('capture-input').value.trim();
 
-    if (!url && !note) {
-      showToast('Enter a URL or note', true);
+    if (!raw) {
+      showToast('Type something to capture', true);
+      return;
+    }
+
+    const { url, note } = splitInputIntoUrlAndNote(raw);
+
+    // If there's a URL but no note, prompt for context
+    if (url && !note) {
+      const hint = document.getElementById('url-hint');
+      hint.classList.add('visible');
+      hint.style.animation = 'none';
+      hint.offsetHeight; // trigger reflow
+      hint.style.animation = 'pulse 0.5s ease';
+      document.getElementById('capture-input').focus();
       return;
     }
 
@@ -543,7 +528,8 @@
     const body = {};
     if (url) body.url = url;
     if (note) body.note = note;
-    if (project && project !== 'auto') body.project = project;
+    // Text-only capture (no URL) — note is the full input
+    if (!url && raw) body.note = raw;
 
     try {
       const headers = { 'Content-Type': 'application/json' };
@@ -561,12 +547,9 @@
       }
 
       showToast('Captured!');
-      document.getElementById('url-input').value = '';
-      document.getElementById('note-input').value = '';
-      document.getElementById('project-select').value = 'auto';
+      document.getElementById('capture-input').value = '';
       document.getElementById('url-hint').classList.remove('visible');
 
-      // Clean the URL params after successful share-sheet capture
       if (window.location.search) {
         history.replaceState(null, '', window.location.pathname);
       }
