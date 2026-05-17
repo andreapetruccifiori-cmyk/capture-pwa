@@ -393,6 +393,14 @@
     anonKey: ''
   };
 
+  // Reset old Supabase endpoint if still stored
+  if ((localStorage.getItem('capture_endpoint') || '').includes('supabase')) {
+    localStorage.removeItem('capture_endpoint');
+    localStorage.removeItem('capture_apiKey');
+    localStorage.removeItem('capture_supabaseUrl');
+    localStorage.removeItem('capture_anonKey');
+  }
+
   function getSetting(key) {
     return localStorage.getItem('capture_' + key) || DEFAULTS[key] || '';
   }
